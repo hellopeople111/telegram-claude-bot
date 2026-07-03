@@ -3,7 +3,7 @@ import os
 import logging
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
-from anthropic import Anthropic
+from openai import OpenAI
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -11,17 +11,20 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-CLAUDE_API_KEY = os.getenv("CLAUDE_API_KEY")
-if not CLAUDE_API_KEY:
-    raise ValueError("CLAUDE_API_KEY не установлен!")
-client = Anthropic(api_key=CLAUDE_API_KEY)
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
+if not OPENAI_API_KEY:
+    logger.error("OPENAI_API_KEY не установлен!")
+    exit(1)
+
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 user_conversations = {}
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "👋 Привет! Я Claude AI бот.\n\n"
+        "👋 Привет! Я AI бот.\n\n"
         "Просто напишите мне любое сообщение, и я помогу вам!\n\n"
         "Команды:\n"
         "/start - начать\n"
@@ -32,7 +35,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     help_text = """
-🤖 Я Claude AI - ассистент на основе ИИ.
+🤖 Я AI ассистент на основе GPT-4.
 
 Я могу помочь с:
 ✅ Анализом товаров
@@ -63,7 +66,7 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         f"📊 Статистика:\n"
         f"Сообщений в истории: {messages_count}\n"
-        f"Модель: Claude Sonnet\n"
+        f"Модель: GPT-4o-mini\n"
         f"Статус: ✅ Онлайн"
     )
 
@@ -83,14 +86,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "content": user_message
         })
         
-        response = client.messages.create(
-            model="claude-3-5-sonnet-20241022",
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=user_conversations[user_id],
             max_tokens=1024,
-            system="Ты полезный ассистент. Отвечай на русском языке. Будь дружелюбным и помогай конкретно.",
-            messages=user_conversations[user_id]
+            temperature=0.7
         )
         
-        assistant_message = response.content[0].text
+        assistant_message = response.choices[0].message.content
         
         user_conversations[user_id].append({
             "role": "assistant",
@@ -107,7 +110,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Ошибка: {e}")
         await update.message.reply_text(
             f"😕 Ошибка: {str(e)}\n\n"
-            f"Проверьте API ключ Claude и баланс счета."
+            f"Проверьте API ключ OpenAI и баланс счета."
         )
 
 
@@ -116,10 +119,6 @@ def main():
     
     if not telegram_token:
         logger.error("TELEGRAM_BOT_TOKEN не установлен!")
-        return
-    
-    if not CLAUDE_API_KEY:
-        logger.error("CLAUDE_API_KEY не установлен!")
         return
     
     application = Application.builder().token(telegram_token).build()
